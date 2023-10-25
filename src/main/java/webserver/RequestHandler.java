@@ -197,7 +197,7 @@ public class RequestHandler extends Thread {
                     response200Header(dos, body.length);
                     responseBody(dos, body);
                 } else {
-                    response302Header(dos, "/login.html");
+                    response302Header(dos, "/user/login.html");
                 }
             } else if ((url.host).endsWith(".css")) {
                 byte[] body = getFileByUrl(url.host);
