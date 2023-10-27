@@ -18,7 +18,7 @@ Q. 서버 소켓 getBytes 시 utf-8인지 어떻게 알고 그에 맞춰 스트�
 -> JVM의 Charset.defaultCharset()이 기반 시스템의 charset이라서. 그리고 내 기반 시스템의 charset이 utf-8이다. (우분투 wsl이 내 환경에선 $LANG=C.UTF-8로 되어 있다.)
 -> inputstreamreader와 같은 게 인코딩 설정 안하면 디폴트 charset 따라가는것
  */
-import java.nio.charset.StandardCharsets;
+
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
@@ -27,42 +27,13 @@ import db.DataBase;
 import model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.HTTPMessage;
+import util.ParsedURI;
 
-import static util.IOUtils.readData;
 import static util.HttpRequestUtils.parseCookies;
 
-class URL {
-    public String host;
-    public Map<String, String> params = null;
 
-    URL(String urlString) {
-        String[] li = urlString.split("\\?");
-        host = li[0];
-        if (host.equals("/")) {
-            host = "/index.html";
-        }
-        System.out.println(host);
 
-        if (li.length > 1) {
-            params = parseParams(li[1]);
-        }
-    }
-
-    public static Map<String, String> parseParams(String queryString) {
-        Map<String, String> params = new HashMap<>();
-        for (String _param : queryString.split("&")) {
-            String[] p = _param.split("=");
-            params.put(p[0], p[1]);
-        }
-        return params;
-    }
-}
-
-class HTTPRequestMessage {
-    public String[] requestLine;
-    public Map<String, String> fields;
-    public String body;
-}
 
 
 public class RequestHandler extends Thread {
@@ -74,41 +45,14 @@ public class RequestHandler extends Thread {
         this.connection = connectionSocket;
     }
 
-    private HTTPRequestMessage parseRequestMessage(InputStream in) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(in));
-
-        HTTPRequestMessage requestMessage = new HTTPRequestMessage();
-
-        String s;
-
-        s = reader.readLine();
-        requestMessage.requestLine = s.split(" ");
-
-        requestMessage.fields = new HashMap<>();
-        while ((s = reader.readLine()) != null && !s.isEmpty()) {
-            String[] p = s.split(": ");
-            (requestMessage.fields).put(p[0], p[1]);
-
-            System.out.println("- " + s);
-        }
-
-        requestMessage.body = null;
-        if ((s = (requestMessage.fields).get("Content-Length")) != null) {
-            requestMessage.body = URLDecoder.decode(readData(reader, Integer.parseInt(s)), "UTF-8");
-        }
-
-        return requestMessage;
+    private HTTPMessage readHTTPMessage(InputStream in) throws IOException {
+        return new HTTPMessage(new BufferedReader(new InputStreamReader(in)));
+    }
+    private byte[] readResource(String path) throws IOException {
+        return Files.readAllBytes(Paths.get("./webapp" + path));
     }
 
-    private byte[] getFileByUrl(String host) throws IOException {
-        byte[] body = Files.readAllBytes(Paths.get("./webapp" + host));
-        //System.out.println(new File("./webapp" + url).toPath());
-        return body;
-    }
-
-    // GET /user/create
-    private void userCreate(Map<String, String> params) {
-
+    private User userCreate(Map<String, String> params) {
         User user = new User(
                 params.get("userId"),
                 params.get("password"),
@@ -116,13 +60,14 @@ public class RequestHandler extends Thread {
                 params.get("email")
         );
         DataBase.addUser(user);
-        System.out.println(user);
+        return user;
     }
     private boolean userLogin(Map<String, String> params) {
         User user = DataBase.findUserById(params.get("userId"));
         return user != null && (params.get("password")).equals(user.getPassword());
     }
     private boolean userList(Map<String, String> params) {
+        // 302 redirect일 때는 재요청이니까 브라우저가 다시 쿠키를 보내지는 않는가 봄.
         String cookieString = params.get("Cookie");
         if (cookieString == null) {
             return false;
@@ -131,11 +76,10 @@ public class RequestHandler extends Thread {
 
         return Boolean.parseBoolean(cookies.get("logined"));
     }
-
     private byte[] makeListHTML() throws IOException {
         StringBuilder sb = new StringBuilder();
 
-        sb.append(new String(getFileByUrl("/user/list1")));
+        sb.append(new String(readResource("/user/list1")));
 
         sb.append("<div class=\"container\" id=\"main\">\r\n");
         sb.append("   <div class=\"col-md-10 col-md-offset-1\">\r\n");
@@ -160,37 +104,47 @@ public class RequestHandler extends Thread {
         sb.append("    </div>\r\n");
         sb.append("</div>\r\n");
 
-        sb.append(new String(getFileByUrl("/user/list2")));
+        sb.append(new String(readResource("/user/list2")));
 
         String s = sb.toString();
-        return s.getBytes(StandardCharsets.UTF_8);
+        return s.getBytes("UTF-8");
     }
 
     public void run() {
-        log.debug("New Client Connect! Connected IP : {}, Port : {}", connection.getInetAddress(),
-                connection.getPort());
+        //log.debug("New Client Connect! Connected IP : {}, Port : {}", connection.getInetAddress(), connection.getPort());
 
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
 
-            HTTPRequestMessage req = parseRequestMessage(in);
-            URL url = new URL(req.requestLine[1]);
+            HTTPMessage req = readHTTPMessage(in);
 
-            // TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
             DataOutputStream dos = new DataOutputStream(out);
-            //byte[] body = "Hello World".getBytes();
 
-            if ((url.host).equals("/user/create")) {
-                userCreate(URL.parseParams(req.body));
+            ParsedURI parsedURI = new ParsedURI(req.startLine[1]);
+            String path = parsedURI.path;
+
+            if (path.equals("/")) {
                 response302Header(dos, "/index.html");
-            } else if ((url.host).equals("/user/login")) {
-                boolean valid = userLogin(URL.parseParams(req.body));
+            } else if (path.equals("/user/create")) {
+                log.debug(req.toString());
+
+                User user = userCreate(ParsedURI.parseParams(req.body));
+                log.debug("New user: {}", user);
+
+                response302Header(dos, "/index.html");
+            } else if (path.equals("/user/login")) {
+                log.debug(req.toString());
+
+                Map<String, String> params = ParsedURI.parseParams(req.body);
+                boolean valid = userLogin(params);
                 if (valid) {
                     response302LoginHeader(dos, "/index.html");
                 } else {
                     response302Header(dos, "/user/login_failed.html");
                 }
-            } else if ((url.host).equals(("/user/list.html"))) {
-                boolean valid = userList(req.fields);
+            } else if (path.equals(("/user/list"))) {
+                log.debug(req.toString());
+
+                boolean valid = userList(req.header);
                 if (valid) {
                     byte[] body = makeListHTML();
                     response200Header(dos, body.length);
@@ -198,12 +152,16 @@ public class RequestHandler extends Thread {
                 } else {
                     response302Header(dos, "/user/login.html");
                 }
-            } else if ((url.host).endsWith(".css")) {
-                byte[] body = getFileByUrl(url.host);
+            } else if (path.endsWith(".css")) {
+                byte[] body = readResource(path);
                 response200CSSHeader(dos, body.length);
                 responseBody(dos, body);
             } else {
-                byte[] body = getFileByUrl(url.host);
+                if (path.endsWith(".html")) {
+                    log.debug(req.toString());
+                }
+
+                byte[] body = readResource(path);
                 response200Header(dos, body.length);
                 responseBody(dos, body);
             }
