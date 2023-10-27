@@ -34,8 +34,6 @@ import static util.HttpRequestUtils.parseCookies;
 
 
 
-
-
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
 
