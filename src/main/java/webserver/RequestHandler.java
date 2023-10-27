@@ -18,7 +18,6 @@ Q. 서버 소켓 getBytes 시 utf-8인지 어떻게 알고 그에 맞춰 스트�
 -> JVM의 Charset.defaultCharset()이 기반 시스템의 charset이라서. 그리고 내 기반 시스템의 charset이 utf-8이다. (우분투 wsl이 내 환경에선 $LANG=C.UTF-8로 되어 있다.)
 -> inputstreamreader와 같은 게 인코딩 설정 안하면 디폴트 charset 따라가는것
  */
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
