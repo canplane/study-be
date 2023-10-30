@@ -2,7 +2,6 @@ package webserver;
 
 import java.io.*;
 import java.net.Socket;
-import java.net.URLDecoder; // application/x-www-form-urlencoded (MDN 참고)
 /* form 태그를 이용한 데이터 전송 시,
 모두 utf-8 기반의 urlencoded (ascii 아닌 걸 모두 %..로 바꾸는 것)를 이용함 (POST의 경우에도 body가 Content-Type=x-www-form-urlencoded가 default)
 근데 POST의 경우에는 html의 charset으로 문자를 읽은 걸 urlencoded 돌려버림.
@@ -27,8 +26,8 @@ import db.DataBase;
 import model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import util.HTTPMessage;
-import util.ParsedURI;
+import model.HttpRequest;
+import model.HttpResponse;
 
 import static util.HttpRequestUtils.parseCookies;
 
@@ -43,30 +42,32 @@ public class RequestHandler extends Thread {
         this.connection = connectionSocket;
     }
 
-    private HTTPMessage readHTTPMessage(InputStream in) throws IOException {
-        return new HTTPMessage(new BufferedReader(new InputStreamReader(in)));
-    }
+
     private byte[] readResource(String path) throws IOException {
         return Files.readAllBytes(Paths.get("./webapp" + path));
     }
 
-    private User userCreate(Map<String, String> params) {
+    private void userCreate(HttpRequest req) {
         User user = new User(
-                params.get("userId"),
-                params.get("password"),
-                params.get("name"),
-                params.get("email")
+                req.getParameter("userId"),
+                req.getParameter("password"),
+                req.getParameter("name"),
+                req.getParameter("email")
         );
         DataBase.addUser(user);
-        return user;
+
+        log.debug("New user: {}", user);
     }
-    private boolean userLogin(Map<String, String> params) {
-        User user = DataBase.findUserById(params.get("userId"));
-        return user != null && (params.get("password")).equals(user.getPassword());
+    private boolean userLogin(HttpRequest req) {
+        String userId = req.getParameter("userId");
+        String password = req.getParameter("password");
+
+        User user = DataBase.findUserById(userId);
+        return user != null && (user.getPassword()).equals(password);
     }
-    private boolean userList(Map<String, String> params) {
+    private boolean userList(HttpRequest req) {
         // 302 redirect일 때는 재요청이니까 브라우저가 다시 쿠키를 보내지는 않는가 봄.
-        String cookieString = params.get("Cookie");
+        String cookieString = req.getHeader("Cookie");
         if (cookieString == null) {
             return false;
         }
@@ -112,106 +113,38 @@ public class RequestHandler extends Thread {
         //log.debug("New Client Connect! Connected IP : {}, Port : {}", connection.getInetAddress(), connection.getPort());
 
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
+            HttpRequest req = new HttpRequest(in);
+            HttpResponse res = new HttpResponse(out);
 
-            HTTPMessage req = readHTTPMessage(in);
+            String path = req.getPath();
 
-            DataOutputStream dos = new DataOutputStream(out);
-
-            ParsedURI parsedURI = new ParsedURI(req.startLine[1]);
-            String path = parsedURI.path;
+            if (path.endsWith(".html")) {
+                res.setHeader("Content-Type", "text/html;charset=utf-8");
+            } else if (path.endsWith(".css")) {
+                res.setHeader("Content-Type", "text/css,*/*,q=0.1");
+            }
 
             if (path.equals("/")) {
-                response302Header(dos, "/index.html");
+                res.redirect("/index.html");
             } else if (path.equals("/user/create")) {
-                log.debug(req.toString());
-
-                User user = userCreate(ParsedURI.parseParams(req.body));
-                log.debug("New user: {}", user);
-
-                response302Header(dos, "/index.html");
+                userCreate(req);
+                res.redirect("/index.html");
             } else if (path.equals("/user/login")) {
-                log.debug(req.toString());
-
-                Map<String, String> params = ParsedURI.parseParams(req.body);
-                boolean valid = userLogin(params);
-                if (valid) {
-                    response302LoginHeader(dos, "/index.html");
+                if (userLogin(req)) {
+                    res.setHeader("Set-Cookie", "logined=true");
+                    res.redirect("/index.html");
                 } else {
-                    response302Header(dos, "/user/login_failed.html");
+                    res.redirect("/user/login_failed.html");
                 }
             } else if (path.equals(("/user/list"))) {
-                log.debug(req.toString());
-
-                boolean valid = userList(req.header);
-                if (valid) {
-                    byte[] body = makeListHTML();
-                    response200Header(dos, body.length);
-                    responseBody(dos, body);
+                if (userList(req)) {
+                    res.forward(makeListHTML());
                 } else {
-                    response302Header(dos, "/user/login.html");
+                    res.redirect("/user/login.html");
                 }
-            } else if (path.endsWith(".css")) {
-                byte[] body = readResource(path);
-                response200CSSHeader(dos, body.length);
-                responseBody(dos, body);
             } else {
-                if (path.endsWith(".html")) {
-                    log.debug(req.toString());
-                }
-
-                byte[] body = readResource(path);
-                response200Header(dos, body.length);
-                responseBody(dos, body);
+                res.forward(readResource(path));
             }
-        } catch (IOException e) {
-            log.error(e.getMessage());
-        }
-    }
-
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
-        try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
-            dos.writeBytes("\r\n");
-        } catch (IOException e) {
-            log.error(e.getMessage());
-        }
-    }
-    private void response200CSSHeader(DataOutputStream dos, int lengthOfBodyContent) {
-        try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/css,*/*,q=0.1\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
-            dos.writeBytes("\r\n");
-        } catch (IOException e) {
-            log.error(e.getMessage());
-        }
-    }
-    private void response302Header(DataOutputStream dos, String location) {
-        try {
-            dos.writeBytes("HTTP/1.1 302 FOUND \r\n");
-            dos.writeBytes("Location: " + location + "\r\n");
-            dos.writeBytes("\r\n");
-        } catch (IOException e) {
-            log.error(e.getMessage());
-        }
-    }
-    private void response302LoginHeader(DataOutputStream dos, String location) {
-        try {
-            dos.writeBytes("HTTP/1.1 302 FOUND \r\n");
-            dos.writeBytes("Location: " + location + "\r\n");
-            dos.writeBytes("Set-Cookie: logined=true\r\n");
-            dos.writeBytes("\r\n");
-        } catch (IOException e) {
-            log.error(e.getMessage());
-        }
-    }
-
-    private void responseBody(DataOutputStream dos, byte[] body) {
-        try {
-            dos.write(body, 0, body.length);
-            dos.flush();
         } catch (IOException e) {
             log.error(e.getMessage());
         }

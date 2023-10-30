@@ -14,9 +14,9 @@ public class IOUtils {
      * @return
      * @throws IOException
      */
-    public static String readData(BufferedReader br, int contentLength) throws IOException {
-        char[] body = new char[contentLength];
-        br.read(body, 0, contentLength);
+    public static String readData(BufferedReader br, int sz) throws IOException {
+        char[] body = new char[sz];
+        br.read(body, 0, sz);
         return String.copyValueOf(body);
     }
 }
