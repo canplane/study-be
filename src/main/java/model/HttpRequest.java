@@ -1,28 +1,28 @@
 package model;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.URLDecoder;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
+import static util.HttpRequestUtils.*;
 import static util.IOUtils.readData;
 
+
 public class HttpRequest {
-    private String method;
+    private HttpMethod method;
     private String path;
     private Map<String, String> parameters = new HashMap<>();
-
     private String version;
-    private Map<String, String> headers = new HashMap<>();
 
-    public String getMethod() { return method; }
+    private Map<String, String> headers = new HashMap<>();
+    private Map<String, String> cookies = new HashMap<>();
+
+    public HttpMethod getMethod() { return method; }
     public String getPath() { return path; }
     public String getParameter(String k) { return parameters.get(k); }
 
     public String getHeader(String k) { return headers.get(k); }
+    public String getCookie(String k) { return cookies.get(k); }
 
     public HttpRequest(InputStream in) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(in, "UTF-8"));
@@ -36,15 +36,25 @@ public class HttpRequest {
         s = URLDecoder.decode(s, "UTF-8");
         String[] tokens = s.split(" ");
 
-        method = tokens[0];
-        parseUri(tokens[1]);
+        method = HttpMethod.valueOf(tokens[0]);
+
+        String[] p = tokens[1].split("\\?");
+        path = p[0];
+        if (p.length > 1) {
+            parameters = parseQueryString(p[1]);
+        }
+
         version = tokens[2];
     }
     private void readHeaders(BufferedReader reader) throws IOException {
         String s;
         while ((s = reader.readLine()) != null && !s.isEmpty()) {
-            String[] p = s.split(": ");
-            headers.put(p[0], p[1]);
+            Pair p = parseHeader(s);
+            String k = p.getKey(), v = p.getValue();
+            headers.put(k, v);
+            if (k.equals("Cookie")) {
+                cookies = parseCookies(v);
+            }
         }
     }
     private void readBody(BufferedReader reader) throws IOException {
@@ -58,22 +68,8 @@ public class HttpRequest {
             s = getHeader("Content-Type");
             if ("application/x-www-form-urlencoded".equals(s)) {
                 _body = URLDecoder.decode(_body, "UTF-8");
-                parseParams(_body);
+                parameters = parseQueryString(_body);
             }
-        }
-    }
-
-    private void parseUri(String uri) {
-        String[] tokens = uri.split("\\?");
-        path = tokens[0];
-        if (tokens.length > 1) {
-            parseParams(tokens[1]);
-        }
-    }
-    private void parseParams(String queryString) {
-        for (String _param : queryString.split("&")) {
-            String[] p = _param.split("=");
-            parameters.put(p[0], p[1]);
         }
     }
 }

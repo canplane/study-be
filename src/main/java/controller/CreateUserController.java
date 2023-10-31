@@ -5,7 +5,7 @@ import model.*;
 
 import java.io.IOException;
 
-public class UserCreateController implements Controller {
+public class CreateUserController extends AbstractController {
     private void makeUser(HttpRequest req) {
         User user = new User(
                 req.getParameter("userId"),
@@ -16,8 +16,9 @@ public class UserCreateController implements Controller {
         DataBase.addUser(user);
     }
 
-    public void service(HttpRequest req, HttpResponse res) throws IOException {
+    @Override
+    public void doPost(HttpRequest req, HttpResponse res) throws IOException {
         makeUser(req);
-        res.sendRedirect("/index.html");
+        res.redirect("/index.html");
     }
 }

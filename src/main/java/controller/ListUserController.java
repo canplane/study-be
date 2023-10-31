@@ -5,13 +5,11 @@ import model.*;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Map;
 
-import static util.HttpRequestUtils.parseCookies;
 import static util.IOUtils.*;
 
-public class UserListController implements Controller {
-    private byte[] makeListHTML() throws IOException {
+public class ListUserController extends AbstractController {
+    private byte[] makeHTML() throws IOException {
         StringBuilder sb = new StringBuilder();
 
         sb.append(new String(readResource("/user/list1")));
@@ -47,21 +45,16 @@ public class UserListController implements Controller {
 
     private boolean isValid(HttpRequest req) {
         // 302 redirect일 때는 재요청이니까 브라우저가 다시 쿠키를 보내지는 않는가 봄.
-        String cookieString = req.getHeader("Cookie");
-        if (cookieString == null) {
-            return false;
-        }
-        Map<String, String> cookies = parseCookies(cookieString);
-
-        return Boolean.parseBoolean(cookies.get("logined"));
+        return Boolean.parseBoolean(req.getCookie("logined"));
     }
 
-    public void service(HttpRequest req, HttpResponse res) throws IOException {
+    @Override
+    public void doGet(HttpRequest req, HttpResponse res) throws IOException {
         if (isValid(req)) {
-            res.forward(makeListHTML());
+            res.forwardContent(makeHTML());
         } else {
-            res.sendRedirect("/user/login.html");
+            res.redirect("/user/login.html");
         }
-        res.sendRedirect("/index.html");
+        res.redirect("/index.html");
     }
 }

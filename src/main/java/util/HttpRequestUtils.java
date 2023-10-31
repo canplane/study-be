@@ -3,6 +3,7 @@
 package util;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -16,7 +17,12 @@ public class HttpRequestUtils {
      * @return
      */
     public static Map<String, String> parseQueryString(String queryString) {
-        return parseValues(queryString, "&");
+        System.out.println(queryString);
+        Map<String, String> parameters = parseValues(queryString, "&");
+        for (String k : parameters.keySet()) {
+            System.out.printf("%s: %s%n", k, parameters.get(k));
+        }
+        return parameters;
     }
 
     /**

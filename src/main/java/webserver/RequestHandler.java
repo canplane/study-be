@@ -18,33 +18,19 @@ Q. 서버 소켓 getBytes 시 utf-8인지 어떻게 알고 그에 맞춰 스트�
 -> inputstreamreader와 같은 게 인코딩 설정 안하면 디폴트 charset 따라가는것
  */
 
-import java.util.*;
-
-import controller.*;
-import controller.Controller;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import model.*;
+import controller.*;
 
-import static util.IOUtils.*;
+import org.slf4j.*;
+
 
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
 
     private Socket connection;
-    public RequestHandler(Socket connectionSocket) {
-        this.connection = connectionSocket;
-    }
-
-    Map<String, Controller> controllers = new HashMap<>();
+    public RequestHandler(Socket connectionSocket) { this.connection = connectionSocket; }
 
     public void run() {
-
-        controllers.put("/user/create", new UserCreateController());
-        controllers.put("/user/login", new UserLoginController());
-        controllers.put("/user/list", new UserListController());
-
         //log.debug("New Client Connect! Connected IP : {}, Port : {}", connection.getInetAddress(), connection.getPort());
 
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
@@ -53,26 +39,22 @@ public class RequestHandler extends Thread {
 
             String path = req.getPath();
 
-            if (path.endsWith(".html")) {
-                res.setHeader("Content-Type", "text/html;charset=utf-8");
-            } else if (path.endsWith(".css")) {
-                res.setHeader("Content-Type", "text/css,*/*,q=0.1");
-            }
-
-            if (path.equals("/")) {
-                res.sendRedirect("/index.html");
-                return;
-            }
-
-            Controller controller = controllers.get(path);
-            if (controller != null) {
+            Controller controller = RequestMapping.getController(path);
+            if (controller == null) {
+                System.out.println(path);
+                res.forward(resolvePath(path));
+            } else {
                 controller.service(req, res);
-                return;
             }
-
-            res.forward(readResource(path));
         } catch (IOException e) {
             log.error(e.getMessage());
         }
+    }
+
+    private String resolvePath(String path) {
+        if (path.equals("/")) {
+            return "/index.html";
+        }
+        return path;
     }
 }
