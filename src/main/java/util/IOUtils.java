@@ -4,6 +4,8 @@ package util;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 public class IOUtils {
     /**
@@ -18,5 +20,9 @@ public class IOUtils {
         char[] body = new char[sz];
         br.read(body, 0, sz);
         return String.copyValueOf(body);
+    }
+
+    public static byte[] readResource(String path) throws IOException {
+        return Files.readAllBytes(Paths.get("./webapp" + path));
     }
 }

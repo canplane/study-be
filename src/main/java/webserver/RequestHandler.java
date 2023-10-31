@@ -18,98 +18,33 @@ Q. 서버 소켓 getBytes 시 utf-8인지 어떻게 알고 그에 맞춰 스트�
 -> inputstreamreader와 같은 게 인코딩 설정 안하면 디폴트 charset 따라가는것
  */
 
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 
-import db.DataBase;
-import model.User;
+import controller.*;
+import controller.Controller;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import model.HttpRequest;
-import model.HttpResponse;
+import model.*;
 
-import static util.HttpRequestUtils.parseCookies;
-
-
+import static util.IOUtils.*;
 
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
 
     private Socket connection;
-
     public RequestHandler(Socket connectionSocket) {
         this.connection = connectionSocket;
     }
 
-
-    private byte[] readResource(String path) throws IOException {
-        return Files.readAllBytes(Paths.get("./webapp" + path));
-    }
-
-    private void userCreate(HttpRequest req) {
-        User user = new User(
-                req.getParameter("userId"),
-                req.getParameter("password"),
-                req.getParameter("name"),
-                req.getParameter("email")
-        );
-        DataBase.addUser(user);
-
-        log.debug("New user: {}", user);
-    }
-    private boolean userLogin(HttpRequest req) {
-        String userId = req.getParameter("userId");
-        String password = req.getParameter("password");
-
-        User user = DataBase.findUserById(userId);
-        return user != null && (user.getPassword()).equals(password);
-    }
-    private boolean userList(HttpRequest req) {
-        // 302 redirect일 때는 재요청이니까 브라우저가 다시 쿠키를 보내지는 않는가 봄.
-        String cookieString = req.getHeader("Cookie");
-        if (cookieString == null) {
-            return false;
-        }
-        Map<String, String> cookies = parseCookies(cookieString);
-
-        return Boolean.parseBoolean(cookies.get("logined"));
-    }
-    private byte[] makeListHTML() throws IOException {
-        StringBuilder sb = new StringBuilder();
-
-        sb.append(new String(readResource("/user/list1")));
-
-        sb.append("<div class=\"container\" id=\"main\">\r\n");
-        sb.append("   <div class=\"col-md-10 col-md-offset-1\">\r\n");
-        sb.append("      <div class=\"panel panel-default\">\r\n");
-        sb.append("          <table class=\"table table-hover\">\r\n");
-        sb.append("              <thead><tr><th>#</th> <th>사용자 아이디</th> <th>이름</th> <th>이메일</th><th></th></tr></thead>\r\n");
-        sb.append("              <tbody>\r\n");
-
-        Collection<User> users = DataBase.findAll();
-        int i = 0;
-        for (User user : users) {
-            sb.append("<tr>");
-            sb.append("<th score=\"row\">" + ++i + "</th>");
-            sb.append("<td>" + user.getName() + "</td>");
-            sb.append("<td>" + user.getEmail() + "</td>");
-            sb.append("<td><a href=\"#\" class=\"btn btn-success\" role=\"button\">수정</a></td>");
-            sb.append("</tr>\r\n");
-        }
-        sb.append("              </tbody>\r\n");
-        sb.append("          </table>\r\n");
-        sb.append("        </div>\r\n");
-        sb.append("    </div>\r\n");
-        sb.append("</div>\r\n");
-
-        sb.append(new String(readResource("/user/list2")));
-
-        String s = sb.toString();
-        return s.getBytes("UTF-8");
-    }
+    Map<String, Controller> controllers = new HashMap<>();
 
     public void run() {
+
+        controllers.put("/user/create", new UserCreateController());
+        controllers.put("/user/login", new UserLoginController());
+        controllers.put("/user/list", new UserListController());
+
         //log.debug("New Client Connect! Connected IP : {}, Port : {}", connection.getInetAddress(), connection.getPort());
 
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
@@ -125,26 +60,17 @@ public class RequestHandler extends Thread {
             }
 
             if (path.equals("/")) {
-                res.redirect("/index.html");
-            } else if (path.equals("/user/create")) {
-                userCreate(req);
-                res.redirect("/index.html");
-            } else if (path.equals("/user/login")) {
-                if (userLogin(req)) {
-                    res.setHeader("Set-Cookie", "logined=true");
-                    res.redirect("/index.html");
-                } else {
-                    res.redirect("/user/login_failed.html");
-                }
-            } else if (path.equals(("/user/list"))) {
-                if (userList(req)) {
-                    res.forward(makeListHTML());
-                } else {
-                    res.redirect("/user/login.html");
-                }
-            } else {
-                res.forward(readResource(path));
+                res.sendRedirect("/index.html");
+                return;
             }
+
+            Controller controller = controllers.get(path);
+            if (controller != null) {
+                controller.service(req, res);
+                return;
+            }
+
+            res.forward(readResource(path));
         } catch (IOException e) {
             log.error(e.getMessage());
         }

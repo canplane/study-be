@@ -1,11 +1,8 @@
 package model;
 
 import java.io.*;
-import java.net.URLDecoder;
 import java.util.HashMap;
 import java.util.Map;
-
-import static util.IOUtils.readData;
 
 public class HttpResponse {
     private static final String NL = "\r\n";
@@ -34,7 +31,7 @@ public class HttpResponse {
         setStatusCode(200, "OK");
         write(body);
     }
-    public void redirect(String uri) throws IOException {
+    public void sendRedirect(String uri) throws IOException {
         setStatusCode(302, "FOUND");
         setHeader("Location", uri);
         write(null);
