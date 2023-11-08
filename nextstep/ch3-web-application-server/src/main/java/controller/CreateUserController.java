@@ -19,6 +19,6 @@ public class CreateUserController extends AbstractController {
     @Override
     public void doPost(HttpRequest req, HttpResponse res) throws IOException {
         makeUser(req);
-        res.redirect("/index.html");
+        res.sendRedirect("/index.html");
     }
 }

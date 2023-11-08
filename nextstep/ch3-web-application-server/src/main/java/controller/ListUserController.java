@@ -53,8 +53,8 @@ public class ListUserController extends AbstractController {
         if (isValid(req)) {
             res.forwardContent(makeHTML());
         } else {
-            res.redirect("/user/login.html");
+            res.sendRedirect("/user/login.html");
         }
-        res.redirect("/index.html");
+        res.sendRedirect("/index.html");
     }
 }

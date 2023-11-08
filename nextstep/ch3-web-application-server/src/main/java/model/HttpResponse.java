@@ -48,7 +48,7 @@ public class HttpResponse {
         write(content);
     }
 
-    public void redirect(String uri) throws IOException {
+    public void sendRedirect(String uri) throws IOException {
         setStatusCode(302, "FOUND");
         setHeader("Location", uri);
         write(null);

@@ -20,9 +20,9 @@ public class LoginController extends AbstractController {
     public void doPost(HttpRequest req, HttpResponse res) throws IOException {
         if (isValid(req)) {
             res.setCookie("logined", "true");
-            res.redirect("/index.html");
+            res.sendRedirect("/index.html");
         } else {
-            res.redirect("/user/login_failed.html");
+            res.sendRedirect("/user/login_failed.html");
         }
     }
 }
