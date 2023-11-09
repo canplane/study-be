@@ -1,5 +1,8 @@
 package model;
 
+import session.HttpSession;
+import session.HttpSessions;
+
 import java.io.*;
 import java.util.*;
 
@@ -84,5 +87,10 @@ public class HttpResponse {
     }
     private void writeBody(byte[] body) throws IOException {
         dos.write(body, 0, body.length);
+    }
+
+    public void setSession() {
+        String sessionId = (UUID.randomUUID()).toString();
+        setCookie("JSESSION", sessionId);
     }
 }

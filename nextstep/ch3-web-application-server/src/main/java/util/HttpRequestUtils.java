@@ -18,7 +18,6 @@ public class HttpRequestUtils {
      * @return
      */
     public static Map<String, String> parseQueryString(String queryString) {
-        System.out.println(queryString);
         Map<String, String> parameters = parseValues(queryString, "&");
         for (String k : parameters.keySet()) {
             System.out.printf("%s: %s%n", k, parameters.get(k));

@@ -1,5 +1,8 @@
 package model;
 
+import session.HttpSession;
+import session.HttpSessions;
+
 import java.io.*;
 import java.net.URLDecoder;
 import java.util.*;
@@ -38,7 +41,7 @@ public class HttpRequest {
 
         method = HttpMethod.valueOf(tokens[0]);
 
-        String[] p = tokens[1].split("\\?");
+        String[] p = tokens[1].split("\\?");    // [ path, queryString ]
         path = p[0];
         if (p.length > 1) {
             parameters = parseQueryString(p[1]);
@@ -71,5 +74,10 @@ public class HttpRequest {
                 parameters = parseQueryString(_body);
             }
         }
+    }
+
+    public HttpSession getSession() {
+        String sessionId = getCookie("JSESSIONID");
+        return HttpSessions.getSession(sessionId);
     }
 }

@@ -2,6 +2,8 @@ package controller;
 
 import db.DataBase;
 import model.*;
+import session.HttpSession;
+import session.HttpSessions;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -43,14 +45,15 @@ public class ListUserController extends AbstractController {
         return s.getBytes("UTF-8");
     }
 
-    private boolean isValid(HttpRequest req) {
+    private boolean isLogined(HttpRequest req) {
         // 302 redirect일 때는 재요청이니까 브라우저가 다시 쿠키를 보내지는 않는가 봄.
-        return Boolean.parseBoolean(req.getCookie("logined"));
+        HttpSession session = req.getSession();
+        return session.getAttribute("user") != null;
     }
 
     @Override
     public void doGet(HttpRequest req, HttpResponse res) throws IOException {
-        if (isValid(req)) {
+        if (isLogined(req)) {
             res.forwardContent(makeHTML());
         } else {
             res.sendRedirect("/user/login.html");

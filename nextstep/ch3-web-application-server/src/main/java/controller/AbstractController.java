@@ -4,6 +4,7 @@ import model.*;
 
 import java.io.IOException;
 
+/** HttpServlet */
 public abstract class AbstractController implements Controller {
     @Override
     public void service(HttpRequest req, HttpResponse res) throws IOException {

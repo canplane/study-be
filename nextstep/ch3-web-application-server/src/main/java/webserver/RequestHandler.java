@@ -37,11 +37,18 @@ public class RequestHandler extends Thread {
             HttpRequest req = new HttpRequest(in);
             HttpResponse res = new HttpResponse(out);
 
+            // check session
+            if (req.getSession() == null) {
+                res.setSession();
+                res.sendRedirect("/");
+                return;
+            }
+
             String path = req.getPath();
 
             Controller controller = RequestMapping.getController(path);
             if (controller == null) {
-                System.out.println(path);
+                //log.debug(path);
                 res.forward(resolvePath(path));
             } else {
                 controller.service(req, res);
